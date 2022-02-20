@@ -14,7 +14,7 @@ namespace ConsoleApp
     public class Rent
     { 
         DateTime date1, date2, date3, date4;
-        int range, st, code, ran;
+        int range, st, code, ran, ranc;
         private static Random gen = new Random();
         EntityReference car, carclass, contact;
         OptionSetValue pickuploc, returnloc;
@@ -41,7 +41,8 @@ namespace ConsoleApp
             car = new EntityReference("mr_car", getRandomCar(guidsCars, (new EntityReference("mr_carclass", guidsCarsClass.ElementAt(ran))).Id));
             pickuploc = new OptionSetValue(gen.Next(315890000, 315890003));
             returnloc = new OptionSetValue(gen.Next(315890000, 315890003));
-            contact = new EntityReference("contact", guidsContacts.ElementAt(gen.Next(1000)));
+            ranc = gen.Next(0, guidsContacts.Count);
+            contact = new EntityReference("contact", guidsContacts.ElementAt(gen.Next(ranc)));
             st = gen.Next(101);
             mon = new Money(gen.Next(500));
         }
