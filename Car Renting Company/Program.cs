@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ConsoleApp.Enums;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Client;
 using Microsoft.Xrm.Sdk.Messages;
@@ -13,8 +14,8 @@ namespace ConsoleApp
 {
     public class Rent
     { 
-        DateTime date1, date2, date3, date4;
-        int range, st, code, ran, ranc;
+        DateTime startDate, endDate, startRentDate, endRentDate;
+        int range, st, statusCode, ran, ranc;
         private static Random gen = new Random();
         EntityReference car, carclass, contact;
         OptionSetValue pickuploc, returnloc;
@@ -31,14 +32,14 @@ namespace ConsoleApp
         {
             newRent = new Entity("mr_rent");
             newReport = new Entity("mr_cartransferreport");
-            date1 = new DateTime(2019, 1, 1);
-            date2 = new DateTime(2020, 12, 11);
-            range = (date2 - date1).Days;
-            date3 = date1.AddDays(gen.Next(range));
-            date4 = date3.AddDays(gen.Next(30));
+            startDate = new DateTime(2019, 1, 1);
+            endDate = new DateTime(2020, 12, 1);
+            range = (endDate - startDate).Days;
+            startRentDate = startDate.AddDays(gen.Next(range));
+            endRentDate = startRentDate.AddDays(gen.Next(30));
             ran = gen.Next(0, guidsCarsClass.Count);
             carclass = new EntityReference("mr_carclass", guidsCarsClass.ElementAt(ran));
-            car = new EntityReference("mr_car", getRandomCar(guidsCars, (new EntityReference("mr_carclass", guidsCarsClass.ElementAt(ran))).Id));
+            car = new EntityReference("mr_car", getRandomCar(guidsCars, guidsCarsClass.ElementAt(ran)));
             pickuploc = new OptionSetValue(gen.Next(315890000, 315890003));
             returnloc = new OptionSetValue(gen.Next(315890000, 315890003));
             ranc = gen.Next(0, guidsContacts.Count);
@@ -49,10 +50,10 @@ namespace ConsoleApp
 
         public Guid fillAllRents(IOrganizationService service, List<Guid> guidsCarsClass, Dictionary<Guid, Guid> guidsCars)
         { 
-            newRent["mr_reservedpickup"] = date3;
-            newRent["mr_actualpickup"] = date3;
-            newRent["mr_reservedhandover"] = date4;
-            newRent["mr_actualreturn"] = date4;
+            newRent["mr_reservedpickup"] = startRentDate;
+            newRent["mr_actualpickup"] = startRentDate;
+            newRent["mr_reservedhandover"] = endRentDate;
+            newRent["mr_actualreturn"] = endRentDate;
             newRent["mr_carclass"] = carclass;
             newRent["mr_car"] = car;
             newRent["mr_pickuplocation"] = pickuploc;
@@ -61,26 +62,21 @@ namespace ConsoleApp
             newRent["mr_price"] = mon;
             if (st < 6) //created
             {
-                code = 315890003;
-                newRent["mr_pickupreport"] = null;
-                newRent["mr_returnreport"] = null;
+                statusCode = (int)StatusCode.Created;
             }
             else if (st < 11) //confirmed
             {
-                code = 315890000;
-                newRent["mr_pickupreport"] = null;
-                newRent["mr_returnreport"] = null;
+                statusCode = (int)StatusCode.Confirmed;
             }
             else if (st < 16) //renting
             {
-                code = 315890001;
+                statusCode = (int)StatusCode.Renting;
                 newReport["mr_name"] = "Pickup";
                 newReport["mr_type"] = false;
-                newReport["mr_date"] = date3;
+                newReport["mr_date"] = startRentDate;
                 if (gen.Next(101) > 5)
                 {
                     newReport["mr_damages"] = false;
-                    newReport["mr_damagedescription"] = null;
                 }
                 else
                 {
@@ -89,33 +85,33 @@ namespace ConsoleApp
                 }
                 newReport["mr_car"] = car;
                 newRent["mr_pickupreport"] = new EntityReference("mr_cartransferreport", service.Create(newReport));
-                newRent["mr_returnreport"] = null;
             }
             else if (st < 91) //returned
             {
-                code = 315890004;
+                statusCode = (int)StatusCode.Returned;
                 newReport["mr_name"] = "Pickup";
                 newReport["mr_type"] = false;
-                newReport["mr_date"] = date3;
+                newReport["mr_date"] = startRentDate;
                 if (gen.Next(101) > 5)
                 {
                     newReport["mr_damages"] = false;
-                    newReport["mr_damagedescription"] = null;
                 }
                 else
                 {
                     newReport["mr_damages"] = true;
                     newReport["mr_damagedescription"] = "damage";
                 }
+
                 newReport["mr_car"] = car;
                 newRent["mr_pickupreport"] = new EntityReference("mr_cartransferreport", service.Create(newReport));
                 newReport["mr_name"] = "Return";
                 newReport["mr_type"] = true;
-                newReport["mr_date"] = date4;
+                newReport["mr_date"] = endRentDate;
+
                 if (gen.Next(101) > 5)
                 {
                     newReport["mr_damages"] = false;
-                    newReport["mr_damagedescription"] = null;
+                    //newReport["mr_damagedescription"] = null;
                 }
                 else
                 {
@@ -127,15 +123,15 @@ namespace ConsoleApp
             }
             else //canceled
             {
-                code = 315890002;
-                newRent["mr_pickupreport"] = null;
-                newRent["mr_returnreport"] = null;
+                statusCode = (int)StatusCode.Canceled;
             }
-            if (code == 315890003 || code == 315890000 || code == 315890001) newRent["statecode"] = new OptionSetValue(0);
-            else newRent["statecode"] = new OptionSetValue(1);
-            newRent["statuscode"] = new OptionSetValue(code);
 
-            switch (code)
+            var activeStatuses = new List<int> { (int)StatusCode.Created, (int)StatusCode.Confirmed, (int)StatusCode.Renting };
+            if (activeStatuses.Contains(statusCode)) newRent["statecode"] = new OptionSetValue(0);
+            else newRent["statecode"] = new OptionSetValue(1);
+            newRent["statuscode"] = new OptionSetValue(statusCode);
+
+            switch (statusCode)
             {
                 case 315890000:
                     if (gen.Next(11) < 10) newRent["mr_paid"] = true;
@@ -172,7 +168,11 @@ namespace ConsoleApp
         public static Dictionary<Guid, Guid> GetEntityCar(IOrganizationService service)
         {
             EntityCollection collection = getCollection(service, "mr_car", "mr_name", "mr_carclass");
-            return collection.Entities.Select(x => new { Car = x.Id, CarClass = x.GetAttributeValue<EntityReference>("mr_carclass").Id }).ToDictionary(x => x.Car, x => x.CarClass);
+            return collection.Entities
+                .Select(x => new { 
+                    Car = x.Id, 
+                    CarClass = x.GetAttributeValue<EntityReference>("mr_carclass").Id })
+                .ToDictionary(x => x.Car, x => x.CarClass);
         }
 
         public static List<Guid> getListID(EntityCollection collection)
@@ -188,8 +188,8 @@ namespace ConsoleApp
         static void Main(string[] args)
         {
             string connectionString = @"AuthType=OAuth;
-                                        Username=username;
-                                        Password=password;
+                                        Username=MariiaRomanenko@Sevent786.onmicrosoft.com;
+                                        Password=Tase2249;
                                         Url=https://d365newenviroment.crm10.dynamics.com;
                                         AppId=51f81489-12ee-4a9e-aaae-a2591f45987d;
                                         RedirectUri=app://58145B91-0C36-4500-8554-080854F2AC97;";
